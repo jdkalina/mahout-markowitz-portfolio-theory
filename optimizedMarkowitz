@@ -1,0 +1,51 @@
+import datascope as dss
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import credentials
+
+myid, mypw = credentials.dss()
+
+d1 = dss.session(myid, mypw)
+data = pd.DataFrame(['ChainRIC','0#.SPX']).transpose()
+d1.load_pd(data,0,1,isTS=True,tsStart='2017-01-01',tsEnd='2020-01-01')
+d1.valid_inst
+d1.pricing(template='hist',fields=['RIC', 'Universal Close Price','Trade Date'])
+d1.extract()
+d1.content
+
+d1.content['Trade Date'] = pd.to_datetime(d1.content['Trade Date'])
+sp500 = d1.content.pivot_table(index = 'Trade Date', values = 'Universal Close Price', columns = 'RIC')[1:].dropna(axis=1, how='any')
+sp500.drop(labels = ['.SPX'],axis=1, inplace=True)
+sp500LOG = np.log(sp500/sp500.shift(1)).dropna()
+
+portfolios= 5000
+
+weights = np.zeros( (portfolios, len(sp500.columns) ) )
+index = 0
+for i in weights:
+       weight = np.array(np.random.random(len(sp500.columns)))
+       weight = weight**1000
+       weights[index,] = (weight)/sum(weight)
+       index += 1
+
+portCovariance = np.sqrt( np.dot (weights, np.dot(sp500LOG.cov() *252, weights.T) ))
+portCovariance.shape
+portVariance = portCovariance.diagonal()
+portVariance.shape
+
+portReturns = np.dot(np.array(sp500LOG.mean()), weights.T) * 252
+
+sharpe = portReturns/portVariance
+weights[np.argmax(sharpe)]
+
+def plot_portfolios(returns, variances):
+       plt.figure(figsize=(10,6))
+       plt.scatter(variances, returns, c=returns/variances)
+       plt.grid(True)
+       plt.xlabel('Expected Volatility')
+       plt.ylabel('Expected Return')
+       plt.colorbar(label='Sharpe Ratio')
+       plt.show()
+
+plot_portfolios(portReturns, portVariance)
